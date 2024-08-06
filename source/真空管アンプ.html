@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Further Refined AIYIMA T9 PRO 3D Model Viewer</title>
+    <style>
+        @font-face {
+            font-family: 'AIYIMAFont';
+            src: url('https://fonts.googleapis.com/css2?family=Teko:wght@600&display=swap');
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f0f0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: black;
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="info">AIYIMA® T9 PRO 3D Model<br>Click and drag to rotate, scroll to zoom</div>
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.112/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.112/examples/jsm/controls/OrbitControls.js';
+
+
+        let scene, camera, renderer, controls;
+        const textureLoader = new THREE.TextureLoader();
+
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            camera.position.set(0, 0.5, 2);
+            camera.lookAt(0, 0, 0);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            createAmpModel();
+
+            animate();
+        }
+
+        function createRoundedBoxGeometry(width, height, depth, radius) {
+            const shape = new THREE.Shape();
+            const eps = 0.00001;
+            const radius0 = radius - eps;
+            shape.absarc(eps, eps, eps, -Math.PI / 2, -Math.PI, true);
+            shape.absarc(eps, height - radius * 2, eps, Math.PI, Math.PI / 2, true);
+            shape.absarc(width - radius * 2, height - radius * 2, eps, Math.PI / 2, 0, true);
+            shape.absarc(width - radius * 2, eps, eps, 0, -Math.PI / 2, true);
+            const geometry = new THREE.ExtrudeGeometry(shape, {
+                depth: depth - radius0 * 2,
+                bevelEnabled: true,
+                bevelSegments: 16,
+                steps: 1,
+                bevelSize: radius,
+                bevelThickness: radius0,
+                curveSegments: 32
+            });
+
+            geometry.center();
+
+            return geometry;
+        }
+
+        function createAmpModel() {
+            const envMap = textureLoader.load('https://threejs.org/examples/textures/envmap.png');
+            envMap.mapping = THREE.SphericalReflectionMapping;
+            scene.environment = envMap;
+
+            // Main body
+            const bodyGeometry = createRoundedBoxGeometry(2, 0.8, 1.5, 0.05);
+            const bodyMaterial = new THREE.MeshPhongMaterial({
+                color: 0x222222,
+                specular: 0x333333,
+                shininess: 30
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.set(0, 0, 0);
+            scene.add(body);
+
+  
+            // Vacuum tubes
+            function createVacuumTube(x, y, z) {
+                const tubeGroup = new THREE.Group();
+
+                // ガラス部分（上部が尖った形状）
+                const glassShape = new THREE.Shape();
+                glassShape.moveTo(0, 0);
+                glassShape.lineTo(0.15, 0);  // 幅を広げる
+                glassShape.lineTo(0.15, 0.3);  // 幅を広げる
+                glassShape.quadraticCurveTo(0.15, 0.4, 0, 0.45);  // より丸みを帯びた上部
+                glassShape.lineTo(0, 0);
+
+                const glassGeometry = new THREE.LatheGeometry(glassShape.getPoints(), 64);  // セグメント数を増やして滑らかに
+                const glassMaterial = new THREE.MeshPhysicalMaterial({
+                    color: 0xcccccc,
+                    transparent: true,
+                    opacity: 0.8,
+                    metalness: 0.2,
+                    roughness: 0.1,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.1,
+                    side: THREE.DoubleSide
+                });
+                const glass = new THREE.Mesh(glassGeometry, glassMaterial);
+
+                // 基部
+                const baseGeometry = new THREE.CylinderGeometry(0.085, 0.085, 0.05, 32);
+                const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
+                const base = new THREE.Mesh(baseGeometry, baseMaterial);
+                base.position.y = -0.225;
+
+                tubeGroup.add(glass);
+                tubeGroup.add(base);
+
+                tubeGroup.position.set(x, y, z);
+                return tubeGroup;
+            }
+
+            const tube1 = createVacuumTube(-0.4, 0.4, -0.35);
+            scene.add(tube1);
+
+            const tube2 = createVacuumTube(0.4, 0.4, -0.35);
+            scene.add(tube2);
+            // Antenna
+            const antennaGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.5, 32);
+            const antennaMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+            antenna.position.set(0, 0.45, 0);
+            scene.add(antenna);
+
+            // Left Display (LED)
+            const displayGeometry = new THREE.CircleGeometry(0.25, 32);
+            const displayMaterial = new THREE.MeshPhongMaterial({
+                color: 0x000000,
+                specular: 0x666666,
+                shininess: 30
+            });
+            const display1 = new THREE.Mesh(displayGeometry, displayMaterial);
+            display1.position.set(-0.5, 0, 0.751);
+            scene.add(display1);
+
+            // Golden frame for left display
+            const frameGeometry = new THREE.RingGeometry(0.25, 0.28, 32);
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFD700,  // より明るい黄金色
+                metalness: 0.6,   // やや下げて、輝きを抑える
+                roughness: 0.2,   // やや下げて、より滑らかに
+                envMap: envMap,
+                envMapIntensity: 1.2  // やや上げて、反射をより強く
+            });
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.set(-0.5, 0, 0.752);
+            scene.add(frame);
+
+            // Display numbers
+            const numberCanvas = document.createElement('canvas');
+            const numberContext = numberCanvas.getContext('2d');
+            numberCanvas.width = 128;
+            numberCanvas.height = 128;
+            const numberGradient = numberContext.createLinearGradient(0, 0, 0, 128);
+            numberGradient.addColorStop(0, '#B8860B');  // 上部：ダークゴールデンロッド
+            numberGradient.addColorStop(0.5, '#A67C00');  // 中央：さらに暗い黄金色
+            numberGradient.addColorStop(1, '#8B6914');  // 下部：非常に暗い黄金色
+            numberContext.fillStyle = numberGradient;
+            numberContext.font = 'bold 80px Arial';
+            numberContext.textAlign = 'center';
+            numberContext.textBaseline = 'middle';
+            numberContext.fillText('88', 64, 64);
+
+            const numberTexture = new THREE.CanvasTexture(numberCanvas);
+            const numberMaterial = new THREE.MeshPhongMaterial({
+                map: numberTexture,
+                transparent: true,
+                specular: 0xB8860B,  // より暗い黄金色の反射
+                shininess: 60,  // 光沢をさらに抑える
+                emissive: 0x8B6914,  // より暗い黄金色の発光
+                emissiveIntensity: 0.15  // 発光強度をさらに抑える
+            });
+            const numberGeometry = new THREE.PlaneGeometry(0.4, 0.4);
+            const numberMesh = new THREE.Mesh(numberGeometry, numberMaterial);
+            numberMesh.position.set(-0.5, 0, 0.753);
+            scene.add(numberMesh);
+
+            // LED lights under the number (in an arc)
+            const ledGeometry = new THREE.CircleGeometry(0.008, 32);
+            const ledMaterials = [
+                new THREE.MeshPhysicalMaterial({
+                    color: 0xFF8080,  // より薄い赤色
+                    emissive: 0xFF0000,
+                    emissiveIntensity: 0.7,
+                    transparent: true,
+                    opacity: 0.9,
+                    clearcoat: 1,
+                    clearcoatRoughness: 0.1
+                }),
+                new THREE.MeshPhysicalMaterial({
+                    color: 0x40FF40,  // さらに鮮やかな緑色
+                    emissive: 0x80FF80,
+                    emissiveIntensity: 0.7,
+                    transparent: true,
+                    opacity: 0.9,
+                    clearcoat: 1,
+                    clearcoatRoughness: 0.1
+                }),
+                new THREE.MeshPhysicalMaterial({
+                    color: 0xFF0000,
+                    emissive: 0xFF0000,
+                    emissiveIntensity: 0.7,
+                    transparent: true,
+                    opacity: 0.9,
+                    clearcoat: 1,
+                    clearcoatRoughness: 0.1
+                })
+            ];
+
+            for (let i = 0; i < 14; i++) {
+                const angle = (i / 13) * Math.PI;
+                let ledMaterialIndex;
+                if (i === 0 || i === 13 || i === 1 || i === 12) {
+                    ledMaterialIndex = 0; // 赤いLED（両端2つずつ）
+                } else {
+                    ledMaterialIndex = 1; // 白いLED（中央部分）
+                }
+                const led = new THREE.Mesh(ledGeometry, ledMaterials[ledMaterialIndex]);
+                led.position.set(
+                    -0.5 + 0.24 * Math.cos(angle),
+                    -0.24 * Math.sin(angle),
+                    0.754
+                );
+                scene.add(led);
+            }
+
+    // Right Display (VU meter)
+    const display2 = display1.clone();
+    display2.position.set(0.5, 0, 0.751);
+    scene.add(display2);
+
+    const frame2 = frame.clone();
+    frame2.position.set(0.5, 0, 0.752);
+    scene.add(frame2);
+
+    // VU meter
+    const vuMeterCanvas = document.createElement('canvas');
+    const vuMeterContext = vuMeterCanvas.getContext('2d');
+    vuMeterCanvas.width = 512;
+    vuMeterCanvas.height = 512;
+
+    // Draw VU meter background
+    vuMeterContext.fillStyle = '#000000';
+    vuMeterContext.beginPath();
+    vuMeterContext.arc(256, 256, 240, 0, Math.PI * 2);
+    vuMeterContext.fill();
+
+    // Draw golden frame
+    const vuMeterFrameGradient = vuMeterContext.createRadialGradient(256, 256, 230, 256, 256, 250);
+    vuMeterFrameGradient.addColorStop(0, '#FFD700');
+    vuMeterFrameGradient.addColorStop(1, '#DAA520');
+    vuMeterContext.fillStyle = vuMeterFrameGradient;
+    vuMeterContext.beginPath();
+    vuMeterContext.arc(256, 256, 250, 0, Math.PI * 2);
+    vuMeterContext.arc(256, 256, 230, 0, Math.PI * 2, true);
+    vuMeterContext.fill();
+
+    // Draw VU meter scale
+    vuMeterContext.strokeStyle = '#FFFFFF';
+    vuMeterContext.fillStyle = '#FFFFFF';
+    vuMeterContext.lineWidth = 2;
+    vuMeterContext.font = 'bold 16px Arial';
+    vuMeterContext.textAlign = 'center';
+    vuMeterContext.textBaseline = 'middle';
+
+    for (let i = -20; i <= 5; i++) {
+        const angle = ((i + 20) / 50) * Math.PI + Math.PI / 2;
+        const x1 = 256 + Math.cos(angle) * 200;
+        const y1 = 256 + Math.sin(angle) * 200;
+        const x2 = 256 + Math.cos(angle) * 220;
+        const y2 = 256 + Math.sin(angle) * 220;
+
+        vuMeterContext.beginPath();
+        vuMeterContext.moveTo(x1, y1);
+        vuMeterContext.lineTo(x2, y2);
+        vuMeterContext.stroke();
+
+        if (i % 5 === 0 || i === 3) {
+            const x3 = 256 + Math.cos(angle) * 180;
+            const y3 = 256 + Math.sin(angle) * 180;
+            vuMeterContext.fillText(i.toString(), x3, y3);
+        }
+    }
+
+    // Draw red zone
+    vuMeterContext.strokeStyle = '#FF0000';
+    vuMeterContext.lineWidth = 4;
+    const startAngle = (20 / 25) * Math.PI + Math.PI / 2;
+    const endAngle = Math.PI / 2;
+    vuMeterContext.beginPath();
+    vuMeterContext.arc(256, 256, 210, startAngle, endAngle);
+    vuMeterContext.stroke();
+
+    // Draw "VU" and "dB" text
+    vuMeterContext.fillStyle = '#FFFFFF';
+    vuMeterContext.font = 'bold 24px Arial';
+    vuMeterContext.fillText('VU', 180, 200);
+    vuMeterContext.font = '16px Arial';
+    vuMeterContext.fillText('dB', 340, 320);
+
+    // Draw VU meter needle
+    vuMeterContext.strokeStyle = '#FF0000';
+    vuMeterContext.lineWidth = 3;
+    vuMeterContext.beginPath();
+    vuMeterContext.moveTo(256, 256);
+    const needleAngle = (10 / 25) * Math.PI + Math.PI / 2;
+    vuMeterContext.lineTo(256 + Math.cos(needleAngle) * 200, 256 + Math.sin(needleAngle) * 200);
+    vuMeterContext.stroke();
+
+    // Draw needle base
+    vuMeterContext.fillStyle = '#FF0000';
+    vuMeterContext.beginPath();
+    vuMeterContext.arc(256, 256, 10, 0, Math.PI * 2);
+    vuMeterContext.fill();
+
+    const vuMeterTexture = new THREE.CanvasTexture(vuMeterCanvas);
+    const vuMeterMaterial = new THREE.MeshPhongMaterial({
+        map: vuMeterTexture,
+        transparent: true,
+        specular: 0xFFFFFF,
+        shininess: 100,
+        emissive: 0x000000,
+        emissiveIntensity: 0.1
+    });
+    const vuMeterGeometry = new THREE.CircleGeometry(0.24, 64);
+    const vuMeterMesh = new THREE.Mesh(vuMeterGeometry, vuMeterMaterial);
+    vuMeterMesh.position.set(0.5, 0, 0.753);
+    scene.add(vuMeterMesh);
+
+
+// Mode control knob
+const knobGroup = new THREE.Group();
+
+// Base cylinder parameters
+const baseRadius = 0.08;
+const baseHeight = 0.09;
+const grooveCount = 40; // さらに溝の数を減らして各溝を目立たせる
+
+// Base shape definition
+const baseShape = new THREE.Shape();
+baseShape.moveTo(0, 0);
+baseShape.lineTo(baseRadius, 0);
+baseShape.lineTo(baseRadius, baseHeight - 0.02);
+baseShape.quadraticCurveTo(baseRadius, baseHeight, baseRadius - 0.02, baseHeight);
+baseShape.lineTo(0, baseHeight);
+
+const baseGeometry = new THREE.LatheGeometry(baseShape.getPoints(), 64);
+
+// Texture creation
+const textureSize = 1024;
+const textureCanvas = document.createElement('canvas');
+textureCanvas.width = textureSize;
+textureCanvas.height = textureSize;
+const textureCtx = textureCanvas.getContext('2d');
+
+// Background gradient
+const textureGradient = textureCtx.createLinearGradient(0, 0, textureSize, 0);
+textureGradient.addColorStop(0, '#222222');
+textureGradient.addColorStop(0.5, '#444444');
+textureGradient.addColorStop(1, '#222222');
+textureCtx.fillStyle = textureGradient;
+textureCtx.fillRect(0, 0, textureSize, textureSize);
+
+// Draw groove pattern
+const grooveWidth = textureSize / grooveCount;
+for (let i = 0; i < grooveCount; i++) {
+    const x = i * grooveWidth;
+    
+    // Draw darker groove
+    textureCtx.fillStyle = '#111111';
+    textureCtx.fillRect(x, 0, grooveWidth * 0.5, textureSize);
+    
+    // Draw lighter ridge
+    textureCtx.fillStyle = '#666666';
+    textureCtx.fillRect(x + grooveWidth * 0.5, 0, grooveWidth * 0.5, textureSize);
+    
+    // Add highlight
+    textureCtx.fillStyle = '#888888';
+    textureCtx.fillRect(x + grooveWidth * 0.5, 0, grooveWidth * 0.1, textureSize);
+}
+
+const knobTexture = new THREE.CanvasTexture(textureCanvas);
+knobTexture.wrapS = THREE.RepeatWrapping;
+knobTexture.repeat.set(4, 1); // テクスチャを4回繰り返して細かくする
+
+// Base knob material
+const baseMaterial = new THREE.MeshPhongMaterial({
+    color: 0x777777,
+    specular: 0x999999,
+    shininess: 30,
+    map: knobTexture,
+    bumpMap: knobTexture,
+    bumpScale: 0.005,
+    displacementMap: knobTexture,
+    displacementScale: 0.0005
+});
+
+const baseKnob = new THREE.Mesh(baseGeometry, baseMaterial);
+
+// Top disc (glossy part)
+const topDiscGeometry = new THREE.CircleGeometry(baseRadius - 0.005, 32);
+const topDiscMaterial = new THREE.MeshPhongMaterial({
+    color: 0x444444,
+    specular: 0xCCCCCC,
+    shininess: 100
+});
+const topDisc = new THREE.Mesh(topDiscGeometry, topDiscMaterial);
+topDisc.rotation.x = -Math.PI / 2;
+topDisc.position.y = baseHeight / 2 + 0.001;
+
+// Assemble knob group
+knobGroup.add(baseKnob);
+knobGroup.add(topDisc);
+
+// Position and rotate knob
+knobGroup.position.set(0, -0.11, 0.751);
+knobGroup.rotation.x = Math.PI / 2;
+scene.add(knobGroup);
+
+// Add light for knob
+const knobLight = new THREE.PointLight(0xFFFFFF, 0.7, 0.5);
+knobLight.position.set(0.1, -0.05, 0.9);
+scene.add(knobLight);
+            // MODEラベルの生成
+            const modeCanvas = document.createElement('canvas');
+            const modeContext = modeCanvas.getContext('2d');
+            modeCanvas.width = 256;
+            modeCanvas.height = 64;
+
+            // 背景（白い枠線）を描画
+            modeContext.fillStyle = '#FFFFFF';
+            modeContext.roundRect(0, 0, 256, 64, 32);
+            modeContext.fill();
+
+            // 内側の黒い背景を描画
+            modeContext.fillStyle = '#000000';
+            modeContext.roundRect(2, 2, 252, 60, 30);
+            modeContext.fill();
+
+            // MODEテキストを描画
+            modeContext.fillStyle = '#FFFFFF';
+            modeContext.font = 'bold 40px Arial';
+            modeContext.textAlign = 'center';
+            modeContext.textBaseline = 'middle';
+            modeContext.fillText('MODE', 128, 32);
+
+            // - と + の円を描画
+            modeContext.fillStyle = '#FFFFFF';
+            modeContext.beginPath();
+            modeContext.arc(30, 32, 20, 0, Math.PI * 2);
+            modeContext.arc(226, 32, 20, 0, Math.PI * 2);
+            modeContext.fill();
+
+            // - と + の記号を描画
+            modeContext.fillStyle = '#000000';
+            modeContext.font = 'bold 36px Arial';
+            modeContext.fillText('-', 30, 34);
+            modeContext.fillText('+', 226, 34);
+
+            const modeTexture = new THREE.CanvasTexture(modeCanvas);
+            const modeMaterial = new THREE.MeshBasicMaterial({
+                map: modeTexture,
+                transparent: true
+            });
+            const modeGeometry = new THREE.PlaneGeometry(0.5, 0.125);
+            const modeMesh = new THREE.Mesh(modeGeometry, modeMaterial);
+            modeMesh.position.set(0, -0.28, 0.752);
+            scene.add(modeMesh);
+
+
+
+            // Text (AIYIMA T9 PRO)
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 512;
+            canvas.height = 64;
+
+
+            const gradient = context.createLinearGradient(0, 0, 0, 64);
+            gradient.addColorStop(0, '#FFFFFF');
+            gradient.addColorStop(0.5, '#CCCCCC');
+            gradient.addColorStop(1, '#FFFFFF');
+            context.fillStyle = gradient;
+            // AIYIMAのテキストを描画
+            context.font = 'bold 48px Arial';
+            context.fillText('AIYIMA', 10, 48);
+
+            // Rマークを描画
+            context.font = 'bold 24px Arial';  // Rマーク用に小さいフォントサイズを設定
+            context.fillText('®', 180, 30);    // 位置を調整。x座標とy座標は適宜調整してください
+
+            // T9 PROのテキストを描画
+            context.font = 'bold 48px Arial';  // 元のフォントサイズに戻す
+            context.fillText('T9 PRO', 210, 48);
+            const textTexture = new THREE.CanvasTexture(canvas);
+            const textMaterial = new THREE.MeshPhongMaterial({
+                map: textTexture,
+                transparent: true,
+                specular: 0xFFFFFF,
+                shininess: 100
+            });
+            const textGeometry = new THREE.PlaneGeometry(0.8, 0.1);
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            textMesh.position.set(-0.55, 0.32, 0.751);
+            scene.add(textMesh);
+
+            // Add point lights for displays
+            const pointLight1 = new THREE.PointLight(0xff9900, 1, 0.5);
+            pointLight1.position.set(-0.5, 0, 0.8);
+            scene.add(pointLight1);
+
+            const pointLight2 = new THREE.PointLight(0xff9900, 1, 0.5);
+            pointLight2.position.set(0.5, 0, 0.8);
+            scene.add(pointLight2);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.addEventListener('resize', onWindowResize, false);
+
+        init();
+    </script>
+</body>
+
+</html>
